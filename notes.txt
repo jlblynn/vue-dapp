@@ -1,0 +1,74 @@
+https://itnext.io/create-your-first-ethereum-dapp-with-web3-and-vue-js-c7221af1ed82
+
+vue init webpack betting-dapp
+cd betting-dapp
+npm i web3@^0.20.0 vuex font-awesome -s
+
+- We need to know the owner of the contract and have an access modifier
+- The owner of the contract can destroy the contract and retrieve the balance
+- A user can bet a number between 1–10
+- The owner needs to be able to set a minimum bet amount and house edge on contract creation
+
+pragma solidity ^0.5.1;
+
+contract Ownable {
+  address payable owner;
+
+  constructor () public {
+  //Set owner to who creates the contract
+  owner = msg.sender;
+  }
+
+  //Access modifier
+  modifier Owned {
+    require(msg.sender == owner);
+    _;
+  }
+}
+
+contract Mortal is Ownable {
+  //Our access modifier is present, only the contract creator can      use this function
+  function kill() public Owned {
+    selfdestruct(owner);
+  }
+}
+
+contract Casino is Mortal{
+  uint minBet;
+  uint houseEdge; //in %
+
+  //true+amount or false+0
+  event Won(bool _status, uint _amount);
+
+  constructor(uint _minBet, uint _houseEdge) payable public {
+    require(_minBet > 0);
+    require(_houseEdge <= 100);
+    minBet = _minBet;
+    houseEdge = _houseEdge;
+  }
+
+  function() external { //fallback
+    revert();
+  }
+
+  function bet(uint _number) payable public {
+    require(_number > 0 && _number <= 10, "Bet must be between 1 and 10");
+    require(msg.value >= minBet, "Bet must be bigger than minimum Bet");
+    uint winningNumber = block.number % 10 + 1;
+    if (_number == winningNumber) {
+      uint amountWon = msg.value * (100 - houseEdge)/10;
+      if(!msg.sender.send(amountWon)) revert();
+      emit Won(true, amountWon);
+    } else {
+      emit Won(false, 0);
+    }
+  }
+
+  function checkContractBalance() Owned public view returns(uint) {
+    return address(this).balance;
+ }
+
+  function checkMinBet() Owned public view returns(uint) {
+    return minBet;
+ }
+}
